@@ -2,7 +2,6 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from torch.utils.tensorboard import SummaryWriter
 from torch.autograd import Variable
 from torchtext import data, datasets, vocab
 
@@ -16,13 +15,13 @@ import numpy as np
 #   https://arxiv.org/pdf/1706.03762.pdf
 
 
-class SelfAttention(nn.Module):
-    
+class SelfAttention(nn.Module):   
+
     def __init__(self, emb_dim, heads = 4, mask = False):
         super().__init__()
         
         self.emb_dim, self.heads = emb_dim, heads
-        
+
         # dimension for each head
         # reduced dimension for each head -> computational cost similar to 1 full head
         s = emb_dim // heads
@@ -106,10 +105,15 @@ class ClassificationTransformer(nn.Module):
         # using positional embedding, easier to implement than positional encoding
         positions = self.pos_emb(torch.arange(t, device = 'cuda'))[None, :, :].expand(b, t, e)
 
-        # entire forward pass with mean averaging the last output
+        # entire forward pass with mean averaging the last output sequence
         x = tokens + positions
         x = self.blocks(x)
         x = x.mean(dim=1)
         x = self.toprobs(x)
         
         return F.log_softmax(x, dim = 1)
+
+
+
+
+    
