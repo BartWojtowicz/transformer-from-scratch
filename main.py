@@ -56,3 +56,28 @@ class SelfAttention(nn.Module):
         out = torch.einsum("nhql, nlhd -> nqhd", [att, values]).reshape(b, t, s*h)
         
         return self.unifyheads(out)
+
+
+class TransformerBlock(nn.Module):
+    
+    def __init__(self, emb, heads, hidden_multiplier = 4):
+        super().__init__()
+
+        self.attention = SelfAttention(emb, heads=heads)
+
+        self.norm1 = nn.LayerNorm(emb)
+        self.norm2 = nn.LayerNorm(emb)
+
+        self.ff = nn.Sequential(
+            nn.Linear(emb, hidden_multiplier * emb),
+            nn.ReLU(),
+            nn.Linear(hidden_multiplier * emb, emb)
+            )
+
+    def forward(self, x):
+        attended = self.attention(x)
+        x = self.norm1(attended + x)
+
+        forwarded = self.ff(x)
+        return self.norm2(forwarded + x)
+
