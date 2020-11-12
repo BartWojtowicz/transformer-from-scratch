@@ -58,7 +58,7 @@ class SelfAttention(nn.Module):
 
 
 class TransformerBlock(nn.Module):
-    
+    # todo: add dropout, 
     def __init__(self, emb, heads, hidden_multiplier = 4):
         super().__init__()
 
@@ -82,3 +82,34 @@ class TransformerBlock(nn.Module):
         forwarded = self.ff(x)
         return self.norm2(forwarded + x)
 
+
+class ClassificationTransformer(nn.Module):
+
+    def __init__(self, emb, heads, depth, seq_length, num_tokens, num_classes):
+        super().__init__()
+        
+        self.num_tokens = num_tokens
+        self.token_emb = nn.Embedding(num_tokens, emb)
+        self.pos_emb = nn.Embedding(num_tokens, emb)
+        
+        # stacked transformer blocks
+        blocks = [TransformerBlock(emb = emb, heads = heads) for _ in range(depth)]
+        self.blocks = nn.Sequential(*blocks)
+        
+        # classification on top of transformer blocks (averaged transformer output sequence as input)
+        self.toprobs = nn.Linear(emb, num_classes)
+        
+    def forward(self, x):
+        tokens = self.token_emb(x)
+        b, t, e = tokens.size()
+        
+        # using positional embedding, easier to implement than positional encoding
+        positions = self.pos_emb(torch.arange(t, device = 'cuda'))[None, :, :].expand(b, t, e)
+
+        # entire forward pass with mean averaging the last output
+        x = tokens + positions
+        x = self.blocks(x)
+        x = x.mean(dim=1)
+        x = self.toprobs(x)
+        
+        return F.log_softmax(x, dim = 1)
