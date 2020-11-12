@@ -3,7 +3,6 @@ import torch.nn.functional as F
 from torch import nn
 
 from torch.autograd import Variable
-from torchtext import data, datasets, vocab
 
 from argparse import ArgumentParser
 import random, tqdm, sys, math, gzip
@@ -89,7 +88,7 @@ class ClassificationTransformer(nn.Module):
         
         self.num_tokens = num_tokens
         self.token_emb = nn.Embedding(num_tokens, emb)
-        self.pos_emb = nn.Embedding(num_tokens, emb)
+        self.pos_emb = nn.Embedding(seq_length, emb)
         
         # stacked transformer blocks
         blocks = [TransformerBlock(emb = emb, heads = heads) for _ in range(depth)]
@@ -99,11 +98,11 @@ class ClassificationTransformer(nn.Module):
         self.toprobs = nn.Linear(emb, num_classes)
         
     def forward(self, x):
-        tokens = self.token_emb(x)
-        b, t, e = tokens.size()
+        b, seq_length = x.shape
         
         # using positional embedding, easier to implement than positional encoding
-        positions = self.pos_emb(torch.arange(t, device = 'cuda'))[None, :, :].expand(b, t, e)
+        positions = self.pos_emb(torch.arange(0, seq_length, device = 'cuda').expand(b, seq_length))
+        tokens = self.token_emb(x)
 
         # entire forward pass with mean averaging the last output sequence
         x = tokens + positions

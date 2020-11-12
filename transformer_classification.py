@@ -1,6 +1,7 @@
 import torch
 import tqdm
 import torch.nn.functional as F
+import wandb 
 
 from torch import nn
 from torchtext import data, datasets, vocab
@@ -22,13 +23,16 @@ def run_classification(args):
     model = ClassificationTransformer(emb = args.emb_size, heads = args.num_heads, depth = args.depth, seq_length = args.max_length, num_tokens = args.vocab_size, num_classes = 2)
     model.cuda()
 
+    wandb.watch(model)
+
     optimizer = torch.optim.Adam(lr = args.lr, params = model.parameters())
     scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lambda i: min(i / (args.lr_warmup / args.batch_size), 1.0))
 
     # todo: implement using lightning =] 
     for e in range(args.num_epochs):
         model.train(True)
-        for batch in tqdm.tqdm(train_iter):
+        train_loss_averaged = 0
+        for idx, batch in enumerate(tqdm.tqdm(train_iter)):
             optimizer.zero_grad()
 
             input = batch.text[0] # at text[1] we have lengths per sequence
@@ -49,6 +53,12 @@ def run_classification(args):
             optimizer.step()
             scheduler.step()
 
+            train_loss_averaged += loss.item()
+            if (idx + 1) % 10 == 0:
+                train_loss_averaged /= 10
+                wandb.log({"Train Loss": train_loss_averaged})
+                train_loss_averaged = 0
+
         with torch.no_grad():
             model.eval()
             total, correct = [0.0, 0.0]
@@ -60,17 +70,22 @@ def run_classification(args):
                 if input.size(1) > args.max_length:
                     input = input[:, :args.max_length]
                 
-                out = model(input).argmax(dim=1)
+                out = model(input)
+                out_argmax = out.argmax(dim=1)
                 total += float(input.size(0))
-                correct += float((label == out).sum().item())
+                correct += float((label == out_argmax).sum().item())
 
             acc = correct / total
             print(f'TEST ACC: {acc:.4}')
+            wandb.log({
+                "Test Accuracy": 100 * acc,
+                "Test Loss": F.nll_loss(out, label).item()
+            })
 
 
 
 if __name__ == "__main__":
-
+    wandb.init()
     parser = ArgumentParser()
 
     parser.add_argument("-e", "--num-epochs",
@@ -119,4 +134,8 @@ if __name__ == "__main__":
                         default=1.0, type=float)
 
     args = parser.parse_args()
+    wandb.config.update(args)
+
+
+
     run_classification(args)
