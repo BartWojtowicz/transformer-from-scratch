@@ -36,22 +36,9 @@ class SelfAttention(nn.Module):
         queries = self.toqueries(x)
         keys    = self.tokeys(x)
         values  = self.tovalues(x)
-        
-        # Einsum FTW 
-
-        # keys = keys.transpose(1, 2).contiguous().view(b * h, t, s)
-        # queries = queries.transpose(1, 2).contiguous().view(b * h, t, s)
-        # values = values.transpose(1, 2).contiguous().view(b * h, t, s)        
-        # queries = queries / (e ** (1/4))
-        # keys    = keys / (e ** (1/4))        
-        # dot = torch.bmm(queries, keys.transpose(1, 2))
-        # dot = F.softmax(dot, dim=2)
 
         dot = torch.einsum("nqhd,nkhd -> nhqk", [queries, keys])
         att = torch.softmax(dot / (e ** (1/2)), dim = 3)
-        
-        # out = torch.bmm(dot, values).view(b, h, t, s)
-        # out = out.transpose(1, 2).contiguous().view(b, t, s * h)
 
         out = torch.einsum("nhql, nlhd -> nqhd", [att, values]).reshape(b, t, s*h)
         
